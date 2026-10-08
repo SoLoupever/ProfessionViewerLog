@@ -1,0 +1,10 @@
+package-as: ProfessionViewerLog
+
+move-folders:
+
+ignore:
+  - .github
+  - .gitignore
+  - .gitattributes
+  - README
+  - README.md
