@@ -62,11 +62,11 @@ function core.InitMinimap()
     -- Évite une double registration
     if LibDBIcon:IsRegistered("ProfessionViewerLog") then return end
 
-    ProfessionViewerLogDB.minimap = ProfessionViewerLogDB.minimap or {}
-    if type(ProfessionViewerLogDB.minimap) ~= "table" then
-        ProfessionViewerLogDB.minimap = {}
+    core.Prefs().minimap = core.Prefs().minimap or {}
+    if type(core.Prefs().minimap) ~= "table" then
+        core.Prefs().minimap = {}
     end
-    ProfessionViewerLogDB.minimap.hide = ProfessionViewerLogDB.minimap.hide or false
+    core.Prefs().minimap.hide = core.Prefs().minimap.hide or false
 
     local ldbObj = {
         icon = "Interface\\AddOns\\ProfessionViewerLog\\PVL.blp",
@@ -91,5 +91,5 @@ function core.InitMinimap()
         end,
     }
 
-    LibDBIcon:Register("ProfessionViewerLog", ldbObj, ProfessionViewerLogDB.minimap)
+    LibDBIcon:Register("ProfessionViewerLog", ldbObj, core.Prefs().minimap)
 end

@@ -131,7 +131,7 @@ function pluginNs.CreateTierDropdown(parent, anchorFrame, tiers, realmName, char
 
             delBtn:SetScript("OnClick", function()
                 pluginNs.CloseActiveDropdown()
-                local cd = ProfessionViewerLogDB[realmName] and ProfessionViewerLogDB[realmName][charName]
+                local cd = core.GetChar(realmName, charName)
                 if cd and cd.professions then
                     for _, p in ipairs(cd.professions) do
                         if p.name == profName then

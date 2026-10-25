@@ -6,9 +6,11 @@ local core     = ns.core
 local pairs, ipairs, next, math_min, math_max = pairs, ipairs, next, math.min, math.max
 local string_format, table_concat, table_sort = string.format, table.concat, table.sort
 
+local vl = _G.ViewerLogAPI   -- recettes housing (ViewerLog_Housing)
+
 local function GetProfDisplayName(name)
     if not name then return name end
-    local lang = ProfessionViewerLogDB and ProfessionViewerLogDB.lang
+    local lang = core.Prefs().lang
     if lang == "enUS" and pluginNs.PROF_EN_NAME then
         local en = pluginNs.PROF_EN_NAME[name]
         if en then return en end
@@ -26,6 +28,10 @@ pluginNs.recipeExpanded = pluginNs.recipeExpanded or {}
 
 local function recipeKey(realm, char, prof)
     return realm .. "||" .. char .. "||" .. prof
+end
+
+local function recipesKey(realm, char, prof)
+    return "r||" .. recipeKey(realm, char, prof)
 end
 
 -- ====================================================
@@ -88,8 +94,8 @@ local function GetOrCreateExpansionFilterPopup()
         local cN, cC, cD, cL = exp.name, color, dot, nameFS
 
         local function RefreshRow()
-            ProfessionViewerLogDB.hiddenExpansions = ProfessionViewerLogDB.hiddenExpansions or {}
-            local hidden = ProfessionViewerLogDB.hiddenExpansions[cN]
+            core.Prefs().hiddenExpansions = core.Prefs().hiddenExpansions or {}
+            local hidden = core.Prefs().hiddenExpansions[cN]
             if hidden then
                 btn:SetBackdropColor(0.25, 0.06, 0.06, 1); btn:SetBackdropBorderColor(0.55, 0.10, 0.10, 1)
                 btnLabel:SetText("|cffff6666OFF|r")
@@ -104,9 +110,9 @@ local function GetOrCreateExpansionFilterPopup()
         row.RefreshRow = RefreshRow; rows[#rows+1] = row
 
         btn:SetScript("OnClick", function()
-            ProfessionViewerLogDB.hiddenExpansions = ProfessionViewerLogDB.hiddenExpansions or {}
-            local hidden = ProfessionViewerLogDB.hiddenExpansions[cN]
-            ProfessionViewerLogDB.hiddenExpansions[cN] = (not hidden) or nil
+            core.Prefs().hiddenExpansions = core.Prefs().hiddenExpansions or {}
+            local hidden = core.Prefs().hiddenExpansions[cN]
+            core.Prefs().hiddenExpansions[cN] = (not hidden) or nil
             RefreshRow()
             if pluginNs.isViewActive and core.mainFrame and core.mainFrame:IsShown() then
                 pluginNs.ShowProfessions()
@@ -122,7 +128,7 @@ local function GetOrCreateExpansionFilterPopup()
     local showAllLbl = showAllBtn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     showAllLbl:SetPoint("CENTER"); showAllLbl:SetText(core.L("PROF_FILTER_SHOW_ALL"))
     showAllBtn:SetScript("OnClick", function()
-        ProfessionViewerLogDB.hiddenExpansions = {}
+        core.Prefs().hiddenExpansions = {}
         for _, row in ipairs(rows) do row.RefreshRow() end
         if pluginNs.isViewActive and core.mainFrame and core.mainFrame:IsShown() then
             pluginNs.ShowProfessions()
@@ -147,7 +153,7 @@ local function ToggleExpansionFilterPopup(anchorFrame)
     local pop = GetOrCreateExpansionFilterPopup()
     if pop:IsShown() then pop:Hide()
     else
-        ProfessionViewerLogDB.hiddenExpansions = ProfessionViewerLogDB.hiddenExpansions or {}
+        core.Prefs().hiddenExpansions = core.Prefs().hiddenExpansions or {}
         for _, row in ipairs(pop.rows) do row.RefreshRow() end
         pop:ClearAllPoints()
         pop:SetPoint("TOPLEFT", anchorFrame, "BOTTOMLEFT", 0, -4)
@@ -156,8 +162,8 @@ local function ToggleExpansionFilterPopup(anchorFrame)
 end
 
 local function IsExpansionHidden(tierName)
-    if not ProfessionViewerLogDB or not ProfessionViewerLogDB.hiddenExpansions then return false end
-    for expName, hidden in pairs(ProfessionViewerLogDB.hiddenExpansions) do
+    if not core.Prefs().hiddenExpansions then return false end
+    for expName, hidden in pairs(core.Prefs().hiddenExpansions) do
         if hidden and tierName and tierName:find(expName, 1, true) then return true end
     end
     return false
@@ -253,8 +259,10 @@ local function NewRecipeToggle(p)
     b.arrowTex = b:CreateTexture(nil, "OVERLAY"); b.arrowTex:SetSize(14,14); b.arrowTex:SetPoint("LEFT", 6, 0)
     b.recipeFS = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     b.recipeFS:SetPoint("LEFT", 24, 0)
+    b.recipeFS:SetJustifyH("LEFT"); b.recipeFS:SetWordWrap(false)
     b.miniBarBg = b:CreateTexture(nil, "BACKGROUND")
     b.miniBarBg:SetSize(50,4); b.miniBarBg:SetPoint("RIGHT", -8, 0)
+    b.recipeFS:SetPoint("RIGHT", b.miniBarBg, "LEFT", -4, 0)
     b.miniBarFill = b:CreateTexture(nil, "ARTWORK")
     b.miniBarFill:SetPoint("LEFT", b.miniBarBg, "LEFT"); return b
 end
@@ -272,31 +280,30 @@ function pluginNs.InvalidateProfsHash()
 end
 
 local function ComputeHash(contentW)
-    if not ProfessionViewerLogDB then return "0" end
     local p = { tostring(contentW), core.Theme.key }
-    local _, wd = pluginNs.GetWoodCounts()
+    local _, wd = core.WoodCounts()
     local wh = 0
     for id, qty in pairs(wd) do wh = wh + id * 31 + qty end
     p[#p+1] = tostring(wh)
-    local hx = ProfessionViewerLogDB.hiddenExpansions
+    local hx = core.Prefs().hiddenExpansions
     if hx then for k, v in pairs(hx) do if v then p[#p+1] = k end end end
-    local hp = ProfessionViewerLogDB.hiddenProfessions
+    local hp = core.Prefs().hiddenProfessions
     if hp then for k, v in pairs(hp) do if v then p[#p+1] = "hp:"..k end end end
-    for realm, rd in pairs(ProfessionViewerLogDB) do
-        if type(rd) == "table" then
-            for char, cd in pairs(rd) do
-                if type(cd) == "table" and cd.class and cd.professions then
-                    p[#p+1] = char..realm..(cd.class or "")
-                    for _, pr in ipairs(cd.professions) do
-                        p[#p+1] = pr.name
-                        for _, t in ipairs(pr.tiers or {}) do
-                            p[#p+1] = tostring((t.level or 0) + (t.max or 0) * 10000)
-                        end
-                    end
+    core.ForEachChar(function(realm, char, cd)
+        if cd.class and cd.professions then
+            p[#p+1] = char..realm..(cd.class or "")
+            local rc = vl.GetRecipes and vl.GetRecipes(char, realm)
+            if rc then
+                for pn, rd in pairs(rc) do p[#p+1] = pn..(rd.known or 0).."/"..(rd.total or 0) end
+            end
+            for _, pr in ipairs(cd.professions) do
+                p[#p+1] = pr.name
+                for _, t in ipairs(pr.tiers or {}) do
+                    p[#p+1] = tostring((t.level or 0) + (t.max or 0) * 10000)
                 end
             end
         end
-    end
+    end)
     return table_concat(p, "|")
 end
 
@@ -316,11 +323,11 @@ function pluginNs.ShowProfessions()
 
     -- ── Reset pool + clear ──────────────────────────────
     ReleaseAll()
+    pluginNs.ReleaseRecipesGrid()
     core.ClearContent()
     _profsScrollChild = core.scrollChild
 
     local sc = core.scrollChild
-    if not ProfessionViewerLogDB then return end
 
     -- ── Header (titre + scan + filtre) — 3 objets, pas de pool ──
     local PADX = 16
@@ -382,8 +389,8 @@ function pluginNs.ShowProfessions()
     -- Indiquer visuellement si des métiers sont filtrés
     local function RefreshProfFilterBtnState()
         local hasHidden = false
-        if ProfessionViewerLogDB and ProfessionViewerLogDB.hiddenProfessions then
-            for _, v in pairs(ProfessionViewerLogDB.hiddenProfessions) do
+        if core.Prefs().hiddenProfessions then
+            for _, v in pairs(core.Prefs().hiddenProfessions) do
                 if v then hasHidden = true; break end
             end
         end
@@ -396,7 +403,7 @@ function pluginNs.ShowProfessions()
     RefreshProfFilterBtnState()
 
     -- ── Section bois — pool ──────────────────────────────
-    local _, woodDetail = pluginNs.GetWoodCounts()
+    local _, woodDetail = core.WoodCounts()
     local BTN_GAP = 4; local BTN_H_W = 44; local AREA_LEFT = PADX; local AREA_RIGHT = contentW - PADX
     local usableW = AREA_RIGHT - AREA_LEFT
     local N_PER_ROW = 1
@@ -412,7 +419,7 @@ function pluginNs.ShowProfessions()
 
     local curX = AREA_LEFT; local curY = START_Y - 18; local colIdx = 0
 
-    for _, expBlock in ipairs(pluginNs.WOOD_BY_EXPANSION) do
+    for expIdx, expBlock in ipairs(core.WoodExpansions()) do
         if colIdx > 0 and colIdx % N_PER_ROW == 0 then curX = AREA_LEFT; curY = curY - BTN_H_W - BTN_GAP end
         local expQty = 0
         for _, item in ipairs(expBlock.items) do expQty = expQty + (woodDetail[item.id] or 0) end
@@ -433,17 +440,18 @@ function pluginNs.ShowProfessions()
             btn:SetBackdropColor(0.09, 0.09, 0.09, 1); btn:SetBackdropBorderColor(0.22, 0.22, 0.22, 1)
             btn.nameFs:SetTextColor(0.30, 0.30, 0.30); btn.qtyFs:SetText("|cff252525".."0".."|r")
         end
-        btn.nameFs:SetText(core.L(expBlock.expansionKey))
+        btn.nameFs:SetText(core.WoodExpansionLabel(expIdx, expBlock))
 
         local cEB, cWD, cHS = expBlock, woodDetail, hasStock
+        local capIdx = expIdx
         btn:SetScript("OnEnter", function(self)
             self:SetBackdropColor(cHS and cr*0.42 or 0.16, cHS and cg*0.42 or 0.16, cHS and cb*0.42 or 0.16, 1)
             self:SetBackdropBorderColor(cHS and math_min(cr,1) or 0.35, cHS and math_min(cg,1) or 0.35, cHS and math_min(cb,1) or 0.35, 1)
             GameTooltip:SetOwner(self, "ANCHOR_BOTTOM"); GameTooltip:ClearLines()
-            GameTooltip:AddLine("|cffffd700"..core.L(cEB.expansionKey).."|r"); GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("|cffffd700"..core.WoodExpansionLabel(capIdx, cEB).."|r"); GameTooltip:AddLine(" ")
             for _, item in ipairs(cEB.items) do
                 local qty = cWD[item.id] or 0
-                GameTooltip:AddDoubleLine("|cffccaa60"..item.name.."|r",
+                GameTooltip:AddDoubleLine("|cffccaa60"..core.WoodItemName(item.id).."|r",
                     (qty>0 and "|cffffffff" or "|cff555555")..qty.."|r", 1,1,1,1,1,1)
             end
             if not cHS then GameTooltip:AddLine(" "); GameTooltip:AddLine(core.L("WOOD_OPEN_WARBAND")) end
@@ -465,15 +473,11 @@ function pluginNs.ShowProfessions()
 
     -- ── Collecte et tri des personnages ──────────────────
     local charList = {}
-    for realmName, realmData in pairs(ProfessionViewerLogDB) do
-        if type(realmData) == "table" then
-            for charName, charData in pairs(realmData) do
-                if type(charData) == "table" and charData.class and charData.professions and #charData.professions > 0 then
-                    charList[#charList+1] = { realm=realmName, name=charName, data=charData }
-                end
-            end
+    core.ForEachChar(function(realmName, charName, charData)
+        if charData.class and charData.professions and #charData.professions > 0 then
+            charList[#charList+1] = { realm=realmName, name=charName, data=charData }
         end
-    end
+    end)
     table.sort(charList, function(a, b)
         local ai = (a.name==core.player and a.realm==core.realm)
         local bi = (b.name==core.player and b.realm==core.realm)
@@ -502,6 +506,11 @@ function pluginNs.ShowProfessions()
         local charName = entry.name; local realmName = entry.realm; local charData = entry.data
         local isCurrent = (charName == core.player and realmName == core.realm)
         local c = RAID_CLASS_COLORS[charData.class] or { r=1, g=1, b=1 }
+        -- Recettes housing du personnage (ViewerLog_Housing), nil si absent.
+        local housing = vl.GetHousingRecipes and vl.GetHousingRecipes(charName, realmName)
+        -- Recettes scannées (ViewerLog_Recette), nil si absent.
+        local scanned = vl.GetRecipes and vl.GetRecipes(charName, realmName)
+        local hasRecipeModule = vl.GetRecipes ~= nil
 
         -- Métiers visibles : principaux puis secondaires
         local visibleProfs = {}
@@ -537,11 +546,14 @@ function pluginNs.ShowProfessions()
                 if not IsExpansionHidden(tier.name) then tiers[#tiers+1] = tier end
             end
 
-            local rDefKey = (pluginNs.PROF_RECIPE_KEY and pluginNs.PROF_RECIPE_KEY[profData.name]) or profData.name
-            local hasRecipes = pluginNs.RenderRecipeGrid and pluginNs.RECIPE_DEFINITIONS
-                and pluginNs.RECIPE_DEFINITIONS[rDefKey] and true or false
+            local hData = housing and housing[profData.name]
+            local rData = scanned and scanned[profData.name]
+            if rData and not (rData.entries and (rData.total or 0) > 0) then rData = nil end
+            -- Barre Recettes : seulement pour un vrai métier (pas de recettes sur les secondaires)
+            local showRecipes = hasRecipeModule and not profData.secondary
+            local nBars = (hData and 1 or 0) + (showRecipes and 1 or 0)
 
-            local cardH = 58 + #tiers * (BAR_H + 3) + (#tiers > 0 and 8 or 0) + (hasRecipes and 24 or 0) + CARD_PAD
+            local cardH = 58 + #tiers * (BAR_H + 3) + (#tiers > 0 and 8 or 0) + (nBars > 0 and 24 or 0) + CARD_PAD
 
             local card = Acquire("profCard", sc, NewProfCard)
             card:SetSize(cardW, cardH)
@@ -575,52 +587,90 @@ function pluginNs.ShowProfessions()
             end
             if #tiers > 0 then y = y - 8 end
 
-            -- Bouton dépliage recettes (poolé) ; grille rendue sous la ligne
-            if hasRecipes then
-                local rKey       = recipeKey(realmName, charName, profData.name)
-                local isExpanded = pluginNs.recipeExpanded[rKey] or false
-                if isCurrent and pluginNs.DetectKnownRecipes then pluginNs.DetectKnownRecipes(profData) end
+            -- Barres Housing / Recettes (poolées) ; grilles rendues sous la ligne
+            local barGap = 6
+            local barW   = nBars == 2 and math.floor((innerW - barGap) / 2) or innerW
+            local barX   = CARD_PAD
 
-                local totalR, knownR = 0, 0
-                local knownMap = profData.knownRecipes or {}
-                for _, recipes in pairs(pluginNs.RECIPE_DEFINITIONS[rDefKey]) do
-                    totalR = totalR + #recipes
-                    for _, recipe in ipairs(recipes) do if knownMap[recipe.itemID] then knownR = knownR + 1 end end
-                end
-
+            local function SetupBar(label, known, total, emptyTip, expanded, onClick)
                 local rt = Acquire("recipeToggle", card, NewRecipeToggle)
-                rt:SetSize(innerW, 24); rt:SetPoint("TOPLEFT", card, "TOPLEFT", CARD_PAD, y)
-                rt.arrowTex:SetAtlas(isExpanded and "housing-floor-arrow-down-default" or "housing-floor-arrow-up-default")
+                rt:SetSize(barW, 24); rt:SetPoint("TOPLEFT", card, "TOPLEFT", barX, y)
+                barX = barX + barW + barGap
+                if emptyTip then
+                    rt.arrowTex:Hide()
+                else
+                    rt.arrowTex:SetAtlas(expanded and "housing-floor-arrow-down-default" or "housing-floor-arrow-up-default")
+                    rt.arrowTex:Show()
+                end
                 rt.recipeFS:SetTextColor(unpack(T.text))
-                rt.recipeFS:SetText(string_format(core.L("RECIPES_LABEL"), knownR, totalR))
+                rt.recipeFS:SetText(label)
                 rt.miniBarBg:SetColorTexture(unpack(T.roles.input[1]))
-                if totalR > 0 then
-                    local pctR = knownR/totalR
-                    rt.miniBarFill:SetSize(math_max(math.floor(pctR*50), 1), 4)
-                    rt.miniBarFill:SetColorTexture(pctR>=1 and 0 or 0.45, pctR>=1 and 0.85 or 0.55, pctR>=1 and 0.35 or 1.00, 0.9)
+                if total > 0 then
+                    local pct = known / total
+                    rt.miniBarFill:SetSize(math_max(math.floor(pct * 50), 1), 4)
+                    rt.miniBarFill:SetColorTexture(pct>=1 and 0 or 0.45, pct>=1 and 0.85 or 0.55, pct>=1 and 0.35 or 1.00, 0.9)
                     rt.miniBarFill:Show(); rt.miniBarBg:Show()
                 else
                     rt.miniBarFill:Hide(); rt.miniBarBg:Hide()
                 end
-
                 rt:SetScript("OnEnter", function(self)
                     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-                    GameTooltip:SetText(isExpanded and core.L("RECIPES_FOLD") or core.L("RECIPES_UNFOLD"), 0.8, 0.8, 1)
-                    GameTooltip:AddLine(string_format(core.L("RECIPES_KNOWN"), knownR, totalR), 1, 1, 1)
+                    if emptyTip then
+                        GameTooltip:SetText(emptyTip, 0.8, 0.8, 1)
+                    else
+                        GameTooltip:SetText(expanded and core.L("RECIPES_FOLD") or core.L("RECIPES_UNFOLD"), 0.8, 0.8, 1)
+                        GameTooltip:AddLine(string_format(core.L("RECIPES_KNOWN"), known, total), 1, 1, 1)
+                    end
                     GameTooltip:Show()
                 end)
                 rt:SetScript("OnLeave", function() GameTooltip:Hide() end)
-                local cKey = rKey
-                rt:SetScript("OnClick", function()
-                    pluginNs.recipeExpanded[cKey] = not pluginNs.recipeExpanded[cKey]
-                    pluginNs.InvalidateProfsHash()   -- force rebuild après toggle recette
-                    pluginNs.ShowProfessions()
-                end)
+                if emptyTip then
+                    rt:SetScript("OnClick", nil)
+                else
+                    rt:SetScript("OnClick", function()
+                        onClick()
+                        pluginNs.InvalidateProfsHash()   -- force rebuild après toggle
+                        pluginNs.ShowProfessions()
+                    end)
+                end
+            end
+
+            if hData then
+                local hKey       = recipeKey(realmName, charName, profData.name)
+                local isExpanded = pluginNs.recipeExpanded[hKey] or false
+                SetupBar(string_format(core.L("HOUSING_LABEL"), hData.knownCount, hData.total),
+                    hData.knownCount, hData.total, nil, isExpanded,
+                    function() pluginNs.recipeExpanded[hKey] = not pluginNs.recipeExpanded[hKey] end)
 
                 if isExpanded then
                     deferred[#deferred+1] = function(parent, yy)
-                        return pluginNs.RenderRecipeGrid(parent, profData, realmName, charName, isCurrent, PADX, yy)
+                        return pluginNs.RenderRecipeGrid(parent, hData.defs, hData.known, PADX, yy, contentW)
                     end
+                end
+            end
+
+            if showRecipes then
+                local rKey       = recipesKey(realmName, charName, profData.name)
+                local isExpanded = rData and pluginNs.recipeExpanded[rKey] or false
+                if rData then
+                    SetupBar(string_format(core.L("RECIPES_LABEL"), rData.known or 0, rData.total),
+                        rData.known or 0, rData.total, nil, isExpanded,
+                        function()
+                            -- Une seule grille de recettes ouverte à la fois
+                            local open = not pluginNs.recipeExpanded[rKey]
+                            for k in pairs(pluginNs.recipeExpanded) do
+                                if k:sub(1, 3) == "r||" then pluginNs.recipeExpanded[k] = nil end
+                            end
+                            pluginNs.recipeExpanded[rKey] = open or nil
+                        end)
+
+                    if isExpanded then
+                        deferred[#deferred+1] = function(parent, yy)
+                            return pluginNs.RenderRecipesGrid(parent, rData.entries, PADX, yy, contentW)
+                        end
+                    end
+                else
+                    SetupBar(core.L("RECIPES_NO_DATA"), 0, 0, core.L("RECIPES_NO_DATA_TT"), false)
                 end
             end
 

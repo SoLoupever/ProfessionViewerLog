@@ -84,7 +84,7 @@ end
 local function RebuildContent(force)
     panelTitle:SetText("|cffcca060" .. core.L("WOOD_PANEL_TITLE") .. "|r")
 
-    local _, woodDetail = pluginNs.GetWoodCounts()
+    local _, woodDetail = core.WoodCounts()
 
     -- Skip rebuild si les données n'ont pas changé (économise des allocations)
     local newHash = BuildHash(woodDetail)
@@ -105,7 +105,7 @@ local function RebuildContent(force)
 
     local curY = -(TOP_PAD)
 
-    for _, expBlock in ipairs(pluginNs.WOOD_BY_EXPANSION) do
+    for expIdx, expBlock in ipairs(core.WoodExpansions()) do
         local expQty = 0
         for _, item in ipairs(expBlock.items) do
             expQty = expQty + (woodDetail[item.id] or 0)
@@ -132,16 +132,17 @@ local function RebuildContent(force)
             btn._nameFs:SetTextColor(0.30, 0.30, 0.30)
             btn._qtyFs:SetText("|cff2a2a2a0|r")
         end
-        btn._nameFs:SetText(core.L(expBlock.expansionKey))
+        btn._nameFs:SetText(core.WoodExpansionLabel(expIdx, expBlock))
 
         local capBlock, capDetail, capStock = expBlock, woodDetail, hasStock
+        local capIdx = expIdx
         btn:SetScript("OnEnter", function(self)
             self:SetBackdropColor(capStock and cr*0.28 or 0.14, capStock and cg*0.28 or 0.14, capStock and cb*0.28 or 0.14, 1)
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT"); GameTooltip:ClearLines()
-            GameTooltip:AddLine("|cffffd700"..core.L(capBlock.expansionKey).."|r"); GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("|cffffd700"..core.WoodExpansionLabel(capIdx, capBlock).."|r"); GameTooltip:AddLine(" ")
             for _, item in ipairs(capBlock.items) do
                 local qty = capDetail[item.id] or 0
-                GameTooltip:AddDoubleLine("|cffccaa60"..item.name.."|r", (qty>0 and "|cffffffff" or "|cff555555")..qty.."|r", 1,1,1,1,1,1)
+                GameTooltip:AddDoubleLine("|cffccaa60"..core.WoodItemName(item.id).."|r", (qty>0 and "|cffffffff" or "|cff555555")..qty.."|r", 1,1,1,1,1,1)
             end
             if not capStock then GameTooltip:AddLine(" "); GameTooltip:AddLine(core.L("WOOD_OPEN_WARBAND")) end
             GameTooltip:Show()
@@ -173,7 +174,7 @@ local function RepositionPanel()
 end
 
 local function IsWoodPanelEnabled()
-    return ProfessionViewerLogDB.woodPanelEnabled ~= false  -- true par défaut
+    return core.Prefs().woodPanelEnabled ~= false  -- true par défaut
 end
 
 local function ShowPanel()
@@ -240,7 +241,7 @@ local function CreateToggleButton()
         GameTooltip:Hide()
     end)
     toggleBtn:SetScript("OnClick", function()
-        ProfessionViewerLogDB.woodPanelEnabled = not IsWoodPanelEnabled()
+        core.Prefs().woodPanelEnabled = not IsWoodPanelEnabled()
         UpdateToggleBtn()
         if IsWoodPanelEnabled() then
             ShowPanel()

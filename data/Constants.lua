@@ -59,6 +59,33 @@ function pluginNs.GetTierColor(name)
     return { r = 0.5, g = 0.7, b = 1.0 }
 end
 
+-- Sous-chaînes (FR/EN) d'un nom de palier → clé d'EXPANSION_LIST
+local EXPANSION_ALIASES = {
+    ["Midnight"]               = { "Midnight", "Minuit" },
+    ["Khaz Algar"]             = { "Khaz Algar", "The War Within" },
+    ["Dragon Isles"]           = { "Dragon Isles", "Dragonflight", "aux Dragons" },
+    ["Shadowlands"]            = { "Shadowlands", "Ombreterre" },
+    ["Battle for Azeroth"]     = { "Battle for Azeroth", "Azeroth" },
+    ["Legion"]                 = { "Legion", "Légion" },
+    ["Warlords of Draenor"]    = { "Warlords of Draenor", "Draenor" },
+    ["Mists of Pandaria"]      = { "Mists of Pandaria", "Pandaria", "Pandarie" },
+    ["Cataclysm"]              = { "Cataclysm", "Cataclysme" },
+    ["Wrath of the Lich King"] = { "Lich King", "Roi-Liche", "Roi-liche" },
+    ["Burning Crusade"]        = { "Burning Crusade", "Croisade", "Outreterre" },
+    ["Classic"]                = { "Classic", "Classique", "classique" },
+}
+
+-- Nom de palier → nom d'extension (EXPANSION_LIST), nil si inconnu
+function pluginNs.MatchExpansion(tierName)
+    if not tierName then return nil end
+    for _, exp in ipairs(pluginNs.EXPANSION_LIST) do
+        for _, key in ipairs(EXPANSION_ALIASES[exp.name]) do
+            if tierName:find(key, 1, true) then return exp.name end
+        end
+    end
+    return nil
+end
+
 pluginNs.PROFESSION_BASE_IDS = {
     ["Alchimie"]            = 171,
     ["Alchemy"]             = 171,

@@ -77,7 +77,7 @@ local function Normalize(key)
 end
 
 function core.GetThemeKey()
-    local s = ProfessionViewerLogDB and ProfessionViewerLogDB.settings
+    local s = core.Prefs().settings
     return Normalize(s and s.theme)
 end
 
@@ -217,8 +217,8 @@ end
 -- ── ApplyTheme ────────────────────────────────────────────────────
 function core.ApplyTheme(theme)
     local key = Normalize(theme)
-    ProfessionViewerLogDB.settings = ProfessionViewerLogDB.settings or {}
-    ProfessionViewerLogDB.settings.theme = key
+    core.Prefs().settings = core.Prefs().settings or {}
+    core.Prefs().settings.theme = key
 
     local t = THEMES[key]
     core.Theme = t

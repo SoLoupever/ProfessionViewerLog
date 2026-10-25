@@ -1,11 +1,6 @@
 local addonName, ns = ...
 
 -- ====================================================
--- BASE DE DONNÉES
--- ====================================================
-ProfessionViewerLogDB = ProfessionViewerLogDB or {}
-
--- ====================================================
 -- NAMESPACE PRINCIPAL
 -- ====================================================
 local core = {}
@@ -13,6 +8,52 @@ ns.core = core
 
 core.player = nil
 core.realm  = nil
+
+-- ====================================================
+-- DONNÉES — tout passe par ViewerLogAPI
+-- Personnages et métiers : ViewerLog (+ ViewerLog_Professions).
+-- Préférences d'affichage : stockage du module "pvl".
+-- ====================================================
+local vl = _G.ViewerLogAPI
+
+-- Préférences (thème, filtres, taille, minimap…).
+function core.Prefs()
+    return vl.GetModuleData("pvl")
+end
+
+function core.GetChar(realm, char)
+    return vl.GetCharacter(char, realm)
+end
+
+-- cb(realm, char, data) pour chaque personnage connu de ViewerLog.
+function core.ForEachChar(cb)
+    vl.ForEachCharacter(function(char, realm, data) cb(realm, char, data) end)
+end
+
+-- Bois : fournis par ViewerLog_Professions ; vides s'il est absent.
+-- Ordre des clés = ordre de GetWoodExpansions (ancien → récent).
+local WOOD_EXP_KEYS = {
+    "EXP_CLASSIC", "EXP_BC", "EXP_WOTLK", "EXP_CATA", "EXP_MOP", "EXP_WOD",
+    "EXP_LEGION", "EXP_BFA", "EXP_SL", "EXP_DF", "EXP_KA", "EXP_MIDNIGHT",
+}
+
+function core.WoodCounts()
+    if vl.GetWoodCounts then return vl.GetWoodCounts() end
+    return 0, {}
+end
+
+function core.WoodExpansions()
+    return vl.GetWoodExpansions and vl.GetWoodExpansions() or {}
+end
+
+function core.WoodItemName(id)
+    return vl.GetWoodItemName and vl.GetWoodItemName(id) or "?"
+end
+
+function core.WoodExpansionLabel(index, block)
+    local key = WOOD_EXP_KEYS[index]
+    return key and core.L(key) or block.expansion
+end
 
 -- Dimensions par défaut (utilisées aussi dans Events pour restaurer la taille)
 core.DEFAULT_FRAME_W = 900
@@ -62,17 +103,10 @@ local L_strings = {
     RECIPES_KNOWN          = "Connues : %d/%d",
     RECIPE_KNOWN_TT        = "|cff00ff55Recette connue|r",
     RECIPE_UNKNOWN_TT      = "|cffff4444Recette inconnue|r",
-    SETTINGS_TITLE         = "Gestion des personnages",
-    SETTINGS_DESC          = "Supprime un personnage et toutes ses données.",
-    SETTINGS_DELETE        = "Supprimer",
-    SETTINGS_CONFIRM       = "Confirmer la suppression de :",
-    SETTINGS_YES           = "Oui, supprimer",
     SETTINGS_NO            = "Annuler",
-    SETTINGS_EMPTY         = "Aucun personnage enregistré.",
-    SETTINGS_RESET_BTN     = "Réinitialiser toutes les données",
-    SETTINGS_RESET_CONFIRM = "Réinitialiser TOUTES les données ?",
-    SETTINGS_RESET_YES     = "Oui, tout effacer",
-    AUTOSCAN_MSG           = "|cffffd700[ProfessionViewerLog]|r Premier scan des métiers...",
+    SETTINGS_RESET_BTN     = "Réinitialiser les paramètres",
+    SETTINGS_RESET_CONFIRM = "Réinitialiser les paramètres ?",
+    SETTINGS_RESET_YES     = "Oui, réinitialiser",
     SETTINGS_2D_ON         = "Aperçu 2D : Activé",
     SETTINGS_2D_OFF        = "Aperçu 2D : Désactivé",
     FILTER_POPUP_TITLE     = "Filtrer les extensions",
@@ -80,6 +114,7 @@ local L_strings = {
     WOOD_SECTION_TITLE     = "Bois (Warband)",
     WOOD_PANEL_TITLE       = "Bois",
     WOOD_OPEN_WARBAND      = "Ouvrez votre Banque de Clan pour lire le stock.",
+    HOUSING_SECTION_LABEL  = "Housing %s",
 }
 
 function core.L(key)
@@ -91,7 +126,7 @@ end
 
 -- ── Changement de langue manuel ───────────────────────────────────────────────
 function core.SetLang(lang)
-    ProfessionViewerLogDB.lang = lang
+    core.Prefs().lang = lang
     if lang == "enUS" and ns.L_enUS then
         core.L_override = ns.L_enUS
     elseif lang == "frFR" and ns.L_frFR then

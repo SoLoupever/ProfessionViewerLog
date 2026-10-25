@@ -249,9 +249,9 @@ mainFrame.resizeGrip:SetScript("OnMouseDown", function()
 end)
 mainFrame.resizeGrip:SetScript("OnMouseUp", function()
     mainFrame:StopMovingOrSizing()
-    if ProfessionViewerLogDB and ProfessionViewerLogDB.settings then
-        ProfessionViewerLogDB.settings.frameWidth  = mainFrame:GetWidth()
-        ProfessionViewerLogDB.settings.frameHeight = mainFrame:GetHeight()
+    if core.Prefs().settings then
+        core.Prefs().settings.frameWidth  = mainFrame:GetWidth()
+        core.Prefs().settings.frameHeight = mainFrame:GetHeight()
     end
     core.scrollChild:SetWidth(core.GetContentWidth())
     if ns.isViewActive then

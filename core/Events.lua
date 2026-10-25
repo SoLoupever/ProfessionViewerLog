@@ -1,5 +1,6 @@
 local addonName, ns = ...
 local core = ns.core
+local vl   = _G.ViewerLogAPI
 
 -- ====================================================
 -- COMMANDES SLASH
@@ -11,15 +12,14 @@ SlashCmdList["PVLOG"] = function(msg)
     msg = msg and strtrim(msg:lower()) or ""
 
     if msg == "scan" then
-        ns.ScanAllProfessions()
+        if vl.ScanAllProfessions then vl.ScanAllProfessions() end
     elseif msg == "settings" then
         ns.isViewActive = false
         ns.ShowSettings()
         mainFrame:Show()
     elseif msg == "minimap" then
-        if ProfessionViewerLogDB and ProfessionViewerLogDB.minimap then
-            ProfessionViewerLogDB.minimap.hide = false
-        end
+        local minimap = core.Prefs().minimap
+        if minimap then minimap.hide = false end
         local LibDBIcon = LibStub("LibDBIcon-1.0", true)
         if LibDBIcon and LibDBIcon:IsRegistered("ProfessionViewerLog") then
             LibDBIcon:Show("ProfessionViewerLog")
@@ -39,34 +39,40 @@ SlashCmdList["PVLOG"] = function(msg)
 end
 
 -- ====================================================
+-- RAFRAÎCHISSEMENT : ViewerLog_Professions notifie après chaque scan.
+-- ====================================================
+if vl.RegisterProfessionsCallback then
+    vl.RegisterProfessionsCallback(function()
+        if ns.isViewActive and core.mainFrame and core.mainFrame:IsShown() then
+            ns.ShowProfessions()
+        end
+    end)
+end
+
+-- ====================================================
 -- PLAYER_LOGIN
 -- ====================================================
 local loginFrame = CreateFrame("Frame")
 loginFrame:RegisterEvent("PLAYER_LOGIN")
 loginFrame:SetScript("OnEvent", function()
     local mainFrame = core.mainFrame
+    local prefs     = core.Prefs()
 
     core.player = UnitName("player")
     core.realm  = GetRealmName()
 
-    -- Initialise les données du personnage courant
-    ProfessionViewerLogDB[core.realm] = ProfessionViewerLogDB[core.realm] or {}
-    ProfessionViewerLogDB[core.realm][core.player] = ProfessionViewerLogDB[core.realm][core.player] or {}
-
-    local cd = ProfessionViewerLogDB[core.realm][core.player]
-    cd.class       = select(2, UnitClass("player"))
-    cd.level       = UnitLevel("player")
-    cd.professions = cd.professions or {}
+    -- Reprise unique de l'ancienne base ProfessionViewerLogDB.
+    ns.MigrateLegacy()
 
     -- Langue sauvegardée (prioritaire sur la locale client)
-    if ProfessionViewerLogDB.lang then
-        core.SetLang(ProfessionViewerLogDB.lang)
+    if prefs.lang then
+        core.SetLang(prefs.lang)
     end
 
     -- Restaure la taille de fenêtre sauvegardée
-    ProfessionViewerLogDB.settings = ProfessionViewerLogDB.settings or {}
-    local w = ProfessionViewerLogDB.settings.frameWidth  or core.DEFAULT_FRAME_W
-    local h = ProfessionViewerLogDB.settings.frameHeight or core.DEFAULT_FRAME_H
+    prefs.settings = prefs.settings or {}
+    local w = prefs.settings.frameWidth  or core.DEFAULT_FRAME_W
+    local h = prefs.settings.frameHeight or core.DEFAULT_FRAME_H
     mainFrame:SetSize(w, h)
 
     -- Applique le thème (migre les anciens thèmes vers "profession")
@@ -75,20 +81,7 @@ loginFrame:SetScript("OnEvent", function()
     -- Initialise la minimap
     core.InitMinimap()
 
-    if ProfessionViewerLogDB.debugVerbose then
+    if prefs.debugVerbose then
         print("|cffffd700[ProfessionViewerLog]|r Chargé — |cffffff00/pvl|r pour ouvrir.")
-    end
-end)
-
--- ====================================================
--- PLAYER_LEVEL_UP
--- ====================================================
-local levelFrame = CreateFrame("Frame")
-levelFrame:RegisterEvent("PLAYER_LEVEL_UP")
-levelFrame:SetScript("OnEvent", function(_, _, newLevel)
-    if core.realm and core.player
-    and ProfessionViewerLogDB[core.realm]
-    and ProfessionViewerLogDB[core.realm][core.player] then
-        ProfessionViewerLogDB[core.realm][core.player].level = newLevel
     end
 end)

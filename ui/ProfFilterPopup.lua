@@ -22,29 +22,16 @@ tinsert(UISpecialFrames, "PVLProfFilterPopup")
 local function CollectKnownProfessionNames()
     local seen  = {}
     local names = {}
-    if not ProfessionViewerLogDB then return names end
-    for realmName, realmData in pairs(ProfessionViewerLogDB) do
-        if type(realmData) == "table"
-        and realmName ~= "minimap"
-        and realmName ~= "warbandBank"
-        and realmName ~= "settings"
-        and realmName ~= "hiddenExpansions"
-        and realmName ~= "hiddenProfessions"
-        and realmName ~= "lang"
-        and realmName ~= "disable2DPreview"
-        and realmName ~= "debugVerbose" then
-            for _, charData in pairs(realmData) do
-                if type(charData) == "table" and charData.professions then
-                    for _, p in ipairs(charData.professions) do
-                        if p.name and not seen[p.name] then
-                            seen[p.name] = true
-                            names[#names + 1] = p.name
-                        end
-                    end
+    core.ForEachChar(function(_, _, charData)
+        if charData.professions then
+            for _, p in ipairs(charData.professions) do
+                if p.name and not seen[p.name] then
+                    seen[p.name] = true
+                    names[#names + 1] = p.name
                 end
             end
         end
-    end
+    end)
     table.sort(names)
     return names
 end
@@ -132,8 +119,8 @@ local function BuildProfFilterPopup()
         local cFS   = nameFS
 
         local function RefreshRow()
-            ProfessionViewerLogDB.hiddenProfessions = ProfessionViewerLogDB.hiddenProfessions or {}
-            local hidden = ProfessionViewerLogDB.hiddenProfessions[cName]
+            core.Prefs().hiddenProfessions = core.Prefs().hiddenProfessions or {}
+            local hidden = core.Prefs().hiddenProfessions[cName]
             if hidden then
                 btn:SetBackdropColor(0.25, 0.06, 0.06, 1)
                 btn:SetBackdropBorderColor(0.55, 0.10, 0.10, 1)
@@ -152,9 +139,9 @@ local function BuildProfFilterPopup()
         rows[#rows + 1] = row
 
         btn:SetScript("OnClick", function()
-            ProfessionViewerLogDB.hiddenProfessions = ProfessionViewerLogDB.hiddenProfessions or {}
-            local hidden = ProfessionViewerLogDB.hiddenProfessions[cName]
-            ProfessionViewerLogDB.hiddenProfessions[cName] = (not hidden) or nil
+            core.Prefs().hiddenProfessions = core.Prefs().hiddenProfessions or {}
+            local hidden = core.Prefs().hiddenProfessions[cName]
+            core.Prefs().hiddenProfessions[cName] = (not hidden) or nil
             RefreshRow()
             if pluginNs.isViewActive and core.mainFrame and core.mainFrame:IsShown() then
                 pluginNs.InvalidateProfsHash()   -- force rebuild immédiat
@@ -173,7 +160,7 @@ local function BuildProfFilterPopup()
     local showAllLbl = showAllBtn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     showAllLbl:SetPoint("CENTER"); showAllLbl:SetText(core.L("PROF_FILTER_SHOW_ALL"))
     showAllBtn:SetScript("OnClick", function()
-        ProfessionViewerLogDB.hiddenProfessions = {}
+        core.Prefs().hiddenProfessions = {}
         for _, row in ipairs(rows) do row.RefreshRow() end
         if pluginNs.isViewActive and core.mainFrame and core.mainFrame:IsShown() then
             pluginNs.InvalidateProfsHash()
@@ -188,9 +175,9 @@ local function BuildProfFilterPopup()
     local hideAllLbl = hideAllBtn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     hideAllLbl:SetPoint("CENTER"); hideAllLbl:SetText(core.L("PROF_FILTER_HIDE_ALL"))
     hideAllBtn:SetScript("OnClick", function()
-        ProfessionViewerLogDB.hiddenProfessions = ProfessionViewerLogDB.hiddenProfessions or {}
+        core.Prefs().hiddenProfessions = core.Prefs().hiddenProfessions or {}
         for _, name in ipairs(names) do
-            ProfessionViewerLogDB.hiddenProfessions[name] = true
+            core.Prefs().hiddenProfessions[name] = true
         end
         for _, row in ipairs(rows) do row.RefreshRow() end
         if pluginNs.isViewActive and core.mainFrame and core.mainFrame:IsShown() then
@@ -215,7 +202,7 @@ function pluginNs.ToggleProfFilterPopup(anchorFrame)
     end
 
     local pop = BuildProfFilterPopup()
-    ProfessionViewerLogDB.hiddenProfessions = ProfessionViewerLogDB.hiddenProfessions or {}
+    core.Prefs().hiddenProfessions = core.Prefs().hiddenProfessions or {}
     if pop.rows then
         for _, row in ipairs(pop.rows) do row.RefreshRow() end
     end
@@ -228,6 +215,6 @@ end
 -- Helper utilisé par View.lua pour masquer un métier
 -- ────────────────────────────────────────────────────
 function pluginNs.IsProfessionHidden(profName)
-    if not ProfessionViewerLogDB or not ProfessionViewerLogDB.hiddenProfessions then return false end
-    return ProfessionViewerLogDB.hiddenProfessions[profName] == true
+    if not core.Prefs().hiddenProfessions then return false end
+    return core.Prefs().hiddenProfessions[profName] == true
 end

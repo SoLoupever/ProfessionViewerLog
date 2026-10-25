@@ -214,7 +214,7 @@ function pluginNs.OpenAddTierPopup(realmName, charName, profName, editTierIdx)
     popup.subTitle:SetText(charName .. "  |cff444444" .. realmName .. "|r")
 
     if isEdit then
-        local charData = ProfessionViewerLogDB[realmName] and ProfessionViewerLogDB[realmName][charName]
+        local charData = core.GetChar(realmName, charName)
         if charData and charData.professions then
             for _, p in ipairs(charData.professions) do
                 if p.name == profName then
@@ -243,7 +243,7 @@ function pluginNs.OpenAddTierPopup(realmName, charName, profName, editTierIdx)
         local mx  = tonumber(popup.maxBox:GetText()) or pluginNs.EXPANSION_LIST[selectedExpansionIdx].defaultMax
         if mx < 1 then mx = 1 end
 
-        local charData = ProfessionViewerLogDB[realmName] and ProfessionViewerLogDB[realmName][charName]
+        local charData = core.GetChar(realmName, charName)
         if charData and charData.professions then
             for _, p in ipairs(charData.professions) do
                 if p.name == profName then

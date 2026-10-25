@@ -83,7 +83,7 @@ local function MakeChoiceRow(parent, y, labelText, choices)
 end
 
 -- ====================================================
--- POPUP DE CONFIRMATION (partagée entre Delete et Reset)
+-- POPUP DE CONFIRMATION (reset)
 -- ====================================================
 local confirmPopup = nil
 
@@ -103,7 +103,7 @@ local function GetOrCreateConfirmPopup()
     msg:SetJustifyH("CENTER")
     pop.msg = msg
 
-    pop.yesBtn = MakeButton(pop, 130, 28, core.L("SETTINGS_YES"))
+    pop.yesBtn = MakeButton(pop, 130, 28, core.L("SETTINGS_RESET_YES"))
     pop.yesBtn:SetPoint("BOTTOMLEFT", 18, 16)
 
     local noBtn = MakeButton(pop, 130, 28, core.L("SETTINGS_NO"))
@@ -123,53 +123,6 @@ local function OpenConfirm(msgText, yesText, onYes)
     pop.noBtn:SetText(core.L("SETTINGS_NO"))
     pop.yesBtn:SetScript("OnClick", function() pop:Hide(); onYes() end)
     pop:Show()
-end
-
-local function MakeCharacterRow(sc, entry, offsetY)
-    local charName  = entry.name
-    local realmName = entry.realm
-    local charData  = entry.data
-    local c = (charData.class and RAID_CLASS_COLORS[charData.class]) or { r = 0.7, g = 0.7, b = 0.7 }
-
-    local row = CreateFrame("Frame", nil, sc, "BackdropTemplate")
-    row:SetHeight(38)
-    row:SetPoint("TOPLEFT",  PAD, offsetY)
-    row:SetPoint("TOPRIGHT", -PAD, offsetY)
-    core.Skin.Frame(row, "bar")
-
-    local nameFS = row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    nameFS:SetPoint("TOPLEFT", 8, -7)
-    nameFS:SetTextColor(c.r, c.g, c.b)
-    nameFS:SetText(charName)
-
-    local realmFS = row:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    realmFS:SetPoint("TOPLEFT", 8, -21)
-    realmFS:SetTextColor(c.r * 0.65, c.g * 0.65, c.b * 0.65)
-    realmFS:SetText(realmName)
-
-    local profCount = charData.professions and #charData.professions or 0
-    local lvlTxt    = charData.level and (core.L("LEVEL_SHORT") .. charData.level) or "?"
-    local infoFS    = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    infoFS:SetPoint("LEFT", 210, 0)
-    infoFS:SetTextColor(c.r * 0.85, c.g * 0.85, c.b * 0.85)
-    infoFS:SetText(string.format(core.L("SETTINGS_CHAR_INFO"), lvlTxt, profCount))
-
-    local delBtn = MakeButton(row, 90, 26, core.L("SETTINGS_DELETE"))
-    delBtn:SetPoint("RIGHT", -10, 0)
-
-    delBtn:SetScript("OnClick", function()
-        local msg = string.format("%s\n|cffffd700%s|r  |cff666666(%s)|r",
-            core.L("SETTINGS_CONFIRM"), charName, realmName)
-        OpenConfirm(msg, core.L("SETTINGS_YES"), function()
-            if ProfessionViewerLogDB[realmName] then
-                ProfessionViewerLogDB[realmName][charName] = nil
-                if next(ProfessionViewerLogDB[realmName]) == nil then
-                    ProfessionViewerLogDB[realmName] = nil
-                end
-            end
-            Rebuild()
-        end)
-    end)
 end
 
 -- ====================================================
@@ -228,7 +181,7 @@ function ns.ShowSettings()
     local card = MakeCard(sc, y)
     local cy = -PAD
 
-    local lang = ProfessionViewerLogDB.lang or (GetLocale() == "frFR" and "frFR" or "enUS")
+    local lang = core.Prefs().lang or (GetLocale() == "frFR" and "frFR" or "enUS")
     cy = MakeChoiceRow(card, cy, core.L("LANG_TITLE"), {
         { label = core.L("LANG_NAME_FR"), active = (lang == "frFR"),
           onClick = function() core.SetLang("frFR"); Rebuild() end },
@@ -246,10 +199,10 @@ function ns.ShowSettings()
     end
     cy = MakeChoiceRow(card, cy, core.L("THEME_TITLE"), themeChoices)
 
-    local is2DOff = ProfessionViewerLogDB.disable2DPreview
+    local is2DOff = core.Prefs().disable2DPreview
     local btn2D = MakeChoice(card, is2DOff and core.L("SETTINGS_2D_OFF") or core.L("SETTINGS_2D_ON"),
         not is2DOff, function()
-            ProfessionViewerLogDB.disable2DPreview = not ProfessionViewerLogDB.disable2DPreview
+            core.Prefs().disable2DPreview = not core.Prefs().disable2DPreview
             Rebuild()
         end, 220)
     btn2D:SetPoint("TOPLEFT", PAD, cy)
@@ -257,8 +210,8 @@ function ns.ShowSettings()
 
     cy = MakeCheckbox(card, cy,
         function(on) return core.L(on and "SETTINGS_DEBUG_BTN" or "SETTINGS_DEBUG_BTN_OFF") end,
-        function() return ProfessionViewerLogDB.debugVerbose and true or false end,
-        function(v) ProfessionViewerLogDB.debugVerbose = v end)
+        function() return core.Prefs().debugVerbose and true or false end,
+        function(v) core.Prefs().debugVerbose = v end)
 
     local debugDesc = card:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     debugDesc:SetPoint("TOPLEFT", PAD + 30, cy + 6)
@@ -272,9 +225,10 @@ function ns.ShowSettings()
     resetBtn:SetScript("OnClick", function()
         OpenConfirm("|cffff4444" .. core.L("SETTINGS_RESET_CONFIRM") .. "|r",
             core.L("SETTINGS_RESET_YES"), function()
-                local savedMinimap = ProfessionViewerLogDB.minimap
-                wipe(ProfessionViewerLogDB)
-                ProfessionViewerLogDB.minimap = savedMinimap
+                local prefs        = core.Prefs()
+                local savedMinimap = prefs.minimap
+                wipe(prefs)
+                prefs.minimap = savedMinimap
                 Rebuild()
                 print(core.L("SETTINGS_RESET_DONE"))
             end)
@@ -283,55 +237,6 @@ function ns.ShowSettings()
 
     card:SetHeight(-cy + PAD - 6)
     y = y - card:GetHeight() - 12
-
-    -- ── Carte personnages ────────────────────────────
-    local charList = {}
-    for realmName, realmData in pairs(ProfessionViewerLogDB) do
-        if type(realmData) == "table"
-        and realmName ~= "minimap"
-        and realmName ~= "warbandBank"
-        and realmName ~= "settings" then
-            for charName, charData in pairs(realmData) do
-                if type(charData) == "table" then
-                    charList[#charList + 1] = { realm = realmName, name = charName, data = charData }
-                end
-            end
-        end
-    end
-    table.sort(charList, function(a, b)
-        if a.realm == b.realm then return a.name < b.name end
-        return a.realm < b.realm
-    end)
-
-    local card2 = MakeCard(sc, y)
-    local c2y = -PAD
-
-    local sec = card2:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    sec:SetPoint("TOPLEFT", PAD, c2y)
-    sec:SetText(core.L("SETTINGS_TITLE"))
-    sec:SetTextColor(unpack(t.heading))
-    c2y = c2y - 24
-
-    local desc = card2:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    desc:SetPoint("TOPLEFT", PAD, c2y)
-    desc:SetText(core.L("SETTINGS_DESC"))
-    desc:SetTextColor(unpack(t.textDim))
-    c2y = c2y - 22
-
-    if #charList == 0 then
-        local empty = card2:CreateFontString(nil, "OVERLAY", "GameFontDisable")
-        empty:SetPoint("TOPLEFT", PAD, c2y)
-        empty:SetText(core.L("SETTINGS_EMPTY"))
-        c2y = c2y - 20
-    else
-        for _, entry in ipairs(charList) do
-            MakeCharacterRow(card2, entry, c2y)
-            c2y = c2y - 46
-        end
-    end
-
-    card2:SetHeight(-c2y + PAD - 6)
-    y = y - card2:GetHeight() - 12
 
     sc:SetHeight(math.abs(y) + 20)
 end
